@@ -421,6 +421,7 @@ After the initial build (Step 2), generate 3-5 specific, falsifiable questions a
 | Card | "Does EVERY image container (hero image, compact thumbnail, summary thumbnail) display a real photograph with visible detail and color variation, OR are any of them flat solid-color rectangles with no visual texture?" |
 | Navigation | "Does the user avatar area show a photograph or a user-circle SVG icon, OR is it a blank/empty circle or solid-color rectangle?" |
 | Accordion | "Is the chevron a crisp SVG vector, OR a thin text-rendered Unicode character like ▼?" |
+| Tooltip | "Does every variant (Light/Dark × Without title/With title × all 4 arrow directions) show a visible anchor element (e.g. a button or interactive control) positioned beside the tooltip bubble, OR are any variants missing the anchor entirely or showing only the floating tooltip with nothing to anchor to?" |
 | Input | "Are all trailing icon slots populated with visible Heroicons SVGs, OR do any show as empty/blank rectangular frames?" |
 | Tile | "Are all tile icons rendered as square shapes (equal width and height), OR has auto-layout stretched any icon into a tall or wide rectangle with visibly distorted proportions?" |
 | Any icon-heavy component | "Do ALL SVG icons maintain their original square aspect ratio (e.g. 24x24, 20x20), OR have any been stretched into non-square rectangles by auto-layout? Look for icons whose strokes appear elongated or whose bounding boxes are visibly taller than wide (or vice versa)." |
@@ -515,7 +516,7 @@ Use these as input when generating verification questions (Step 3):
 | Radio Button | Inner dot stretched into vertical capsule/oval; dot outside the circle; selected and unselected variants visually identical |
 | Toggle | Thumb distorted into oval; check icon missing from on-state thumb; check icon overflowing/stretching beyond thumb bounds |
 | Chip | Close/remove x-mark is a Unicode × text character instead of SVG; standard vs compact variants identical size |
-| Tooltip | Close button is a text × instead of SVG x-mark; arrow direction not visible or pointing wrong direction |
+| Tooltip | Close button is a text × instead of SVG x-mark; arrow direction not visible or pointing wrong direction; **tooltip anchor missing or not present across variants** — each variant must display an anchor element (e.g. a button or interactive control) to show the tooltip in context; verify the anchor is visible and consistent across all arrow-direction variants (Top/Bottom/Left/Right) and Light/Dark variants |
 | Button | Loading spinner is a Unicode character or missing; hover/active states not visually distinct from default |
 | Input | Trailing icon slots are empty/blank frames or **icons stretched into non-square rectangles**; floating label variant has no visible label; error state indistinguishable from default |
 | Accordion | Chevron is a Unicode ▼ text node instead of SVG; open and closed states visually identical |
