@@ -111,8 +111,25 @@ Phase 0 — DISCOVERY (no writes yet)
         rooted in color theory (not default blue/gray).
       - Present a mood / creative direction summary (personality,
         palette rationale, type rationale, spacing philosophy).
-  0f. Lock scope: confirm exact token set + base 14 + domain-specific
+  0f. Font availability check: before committing to the proposed
+      typefaces, verify they are loadable in Figma. Use `use_figma`
+      to create a test text node with each proposed font family and
+      read back the resolved fontName. If Figma substitutes a
+      different font (the resolved family does not match the
+      proposed family), the typeface is unavailable — propose an
+      alternative and re-verify. Never proceed to Phase 1 with an
+      unverified typeface.
+  0g. Lock scope: confirm exact token set + base 14 + domain-specific
       component list + creative direction with user
+  0h. Write the creative direction artifact: save the approved
+      creative direction to /tmp/dsb-creative-direction-{RUN_ID}.md
+      containing: brand personality keywords, palette with hex values
+      and color-theory rationale, typeface pairing with justification,
+      spacing philosophy (tight/generous, base unit), border-radius
+      philosophy, shadow/elevation philosophy, and hover/focus/active
+      state language (e.g. "color shift + shadow lift" vs "border
+      appearance + subtle scale"). Sub-agents reference this file
+      for all micro-decisions about visual treatment.
   ✋ CHECKPOINT: Present full plan including creative direction, await
      explicit approval
 
@@ -128,12 +145,59 @@ Phase 1 — FOUNDATIONS: Tokens & Styles
   1d. Effect Styles (Elevation)
       → Level 0 (none) → Level 1 → Level 2 → Level 3 → Level 4
   → Validate: all styles/variables created, scopes set, code syntax set
-  ✋ CHECKPOINT: Show token summary, await approval
+  1e. Foundation verification (CoVE for tokens):
+      Take screenshots of the Styles panel and Variables panel, then
+      verify each category against the approved creative direction:
+      - Color Styles: are hex values correct? Do neutrals have the
+        intended warm/cool undertone? Is the primary non-default?
+      - Text Styles: does each style resolve to the approved font
+        family? Are font sizes, weights, line-heights, and letter-
+        spacing correct per the spec?
+      - Number Variables: do spacing tokens match the approved base
+        unit and scale? Do border-radius tokens match the philosophy?
+      - Effect Styles: do shadow values progress logically from
+        Level 0 to Level 4? Do shadows carry the intended color tint?
+      Use the evidence-based format (Question / Evidence / Verdict).
+      Fix any defects before proceeding. Errors here propagate into
+      every component.
+  1f. Write foundation IDs to master state ledger:
+      /tmp/dsb-state-{RUN_ID}.json
+  ✋ CHECKPOINT: Show token summary + foundation verification report,
+     await approval
 
-Phase 2 — FILE STRUCTURE
-  2a. Page skeleton: Cover → Getting Started → Foundations → --- → Components → --- → Utilities
-  2b. Foundations docs: color swatches, type specimens, spacing scale bars, elevation demo
-  ✋ CHECKPOINT: Show page list + screenshot
+Phase 2 — FILE STRUCTURE & SHARED ICONS
+  2a. Page skeleton: Cover → Getting Started → Foundations → --- →
+      Components → --- → Utilities → Composition Tests
+  2b. Foundations docs: color swatches, type specimens, spacing scale
+      bars, elevation demo
+  2c. Shared icon library: create ALL Heroicon components needed
+      across the entire design system on a dedicated "Icons" page.
+      Use the Component Quick Reference table to collect the full
+      icon list. Create each as a ComponentNode via
+      createHeroiconComponent(). Record every icon component ID in
+      the master state ledger under an "icons" key:
+        "icons": { "check": "id", "chevron-down": "id", ... }
+      Sub-agents reference these IDs to create instances — they do
+      NOT create their own icon components. This prevents duplicates
+      and ensures consistent icon sizing/naming across all batches.
+  2d. Page naming convention: every component page MUST be named
+      exactly "{ComponentName}" matching the Component Quick Reference
+      table (e.g. "Checkbox", "Radio Button", "Navigation"). Domain-
+      specific components use the name approved in Phase 0g. The
+      coordinator registers page names in the master state ledger.
+      Sub-agents create pages using these exact names — collisions
+      are prevented by assignment (each component is assigned to
+      exactly one sub-agent).
+  2e. Foundation documentation verification: take screenshots of
+      each documentation element on the Foundations page and verify:
+      - Does each color swatch match the corresponding Color Style?
+      - Does each type specimen render in the correct font family,
+        size, and weight?
+      - Do spacing scale bars match the Number Variable values?
+      - Does the elevation demo show progressively stronger shadows?
+      Fix any discrepancies before proceeding.
+  ✋ CHECKPOINT: Show page list + Foundations screenshots +
+     documentation verification report
 
 Phase 3 — COMPONENTS (parallel tiers, dependency order)
 
@@ -154,6 +218,9 @@ Phase 3 — COMPONENTS (parallel tiers, dependency order)
     → Each builds its components sequentially on dedicated pages,
       applying full CoVE per component
     → Each writes results to its own batch state file
+    → As each sub-agent completes, coordinator posts a brief
+      progress update to the user: "Batch X complete (components).
+      Batch Y/Z still in progress."
     → Coordinator waits for all 3 to complete
     → Coordinator merges batch state files into master ledger
     → Coordinator spawns Image Analysis Sub-Agents for
@@ -173,6 +240,8 @@ Phase 3 — COMPONENTS (parallel tiers, dependency order)
     → Spawn 2 builder sub-agents in parallel
     → Each reads master ledger (now includes Tier 1 component IDs)
     → Each composes Tier 1 components via instance creation
+    → As each sub-agent completes, coordinator posts a brief
+      progress update to the user
     → Wait for both to complete
     → Coordinator merges batch state files into master ledger
     → Coordinator spawns Image Analysis Sub-Agents for
@@ -214,12 +283,21 @@ Phase 3 — COMPONENTS (parallel tiers, dependency order)
          oval; Card → image container blank)
       e. Trace dependencies: which foundation token IDs and icon
          SVGs are needed
-      f. Plan the build steps and variant matrix size
+      f. Plan the build steps and calculate variant matrix size
+         explicitly: list every axis (types × states × sizes) and
+         multiply. If the product exceeds 30, split into sub-
+         components BEFORE building — never discover overflow
+         mid-build. Record the planned matrix dimensions.
 
     STEP 2 — INITIAL BUILD
-      a. Create dedicated page
-      b. Load heroicons-svg-reference.md, create needed icon
-         components for this component
+      a. Create dedicated page (using the exact name registered
+         in the master state ledger from Phase 2d)
+      b. Look up needed icon component IDs from the master state
+         ledger "icons" key (created by coordinator in Phase 2c).
+         Create instances from these shared icon components — do
+         NOT create new icon components. If an icon is missing
+         from the ledger, report to coordinator instead of
+         creating it locally.
       c. Build base component with auto-layout + variable bindings
          (spacing, color, radius)
       d. Load placeholder images into ALL image containers
@@ -252,10 +330,21 @@ Phase 3 — COMPONENTS (parallel tiers, dependency order)
       screenshot + evidence.
 
 Phase 4 — QA & INTEGRATION
-  4a. Accessibility audit (contrast ratios, min touch targets 44×44px)
-  4b. Naming audit (no duplicates, consistent casing)
-  4c. Unresolved bindings audit (no hardcoded fills/strokes)
-  4d. Final screenshots per page
+  4a. Composition test page: on the "Composition Tests" page,
+      build 3-5 realistic UI patterns that nest Tier 1 + Tier 2
+      components together:
+      - A Card containing Button + Input + Chip instances
+      - A Navigation bar with Button and Input instances
+      - A form layout with Checkbox + Radio + Input + Button
+      - A Dropdown inside a Card alongside Callout
+      Take screenshots and verify: do spacing tokens harmonize
+      when components are nested? Do border radii feel cohesive?
+      Does the visual rhythm hold in context? Fix any integration
+      issues discovered.
+  4b. Accessibility audit (contrast ratios, min touch targets 44×44px)
+  4c. Naming audit (no duplicates, consistent casing)
+  4d. Unresolved bindings audit (no hardcoded fills/strokes)
+  4e. Final screenshots per page
   ✋ CHECKPOINT: Complete sign-off
 ```
 
@@ -320,11 +409,11 @@ Load [design-system-spec.md](references/design-system-spec.md) for full anatomy,
 - **Never `ALL_SCOPES`** — set explicit scopes per variable type
 - **Semantic variables alias to primitives** — never duplicate raw values
 - **INSTANCE_SWAP for icons**, never a variant per icon
-- **Variant matrix ≤ 30** — split sub-component if exceeded
+- **Variant matrix ≤ 30** — calculate explicitly during planning (list axes, multiply). Split sub-component BEFORE building if exceeded
 - **Sequential `use_figma` calls per agent** — a single agent never sends two `use_figma` calls at the same time. Across parallel sub-agents, the MCP server serializes concurrent requests safely.
 - **Never hallucinate node IDs** — always read from state ledger
 - **Validate before proceeding** — `get_metadata` after create, `get_screenshot` for CoVE verification after each component
-- **All icons MUST be Heroicons SVGs** — created via `figma.createNodeFromSvg()` with actual SVG path data from [heroicons-svg-reference.md](references/heroicons-svg-reference.md). Never use Unicode symbols (`✓`, `▼`, `×`, `☰`, etc.), never use text nodes as icons, never leave blank/empty icon placeholder frames. Every icon slot in every component must contain a visible, correctly rendered Heroicons SVG vector.
+- **All icons MUST be Heroicons SVGs** — the coordinator creates all icon components in Phase 2c via `createHeroiconComponent()` with actual SVG path data from [heroicons-svg-reference.md](references/heroicons-svg-reference.md). Sub-agents use instances from these shared components (looked up by ID from the master state ledger `"icons"` key) — they never create new icon components. Never use Unicode symbols (`✓`, `▼`, `×`, `☰`, etc.), never use text nodes as icons, never leave blank/empty icon placeholder frames. Every icon slot in every component must contain a visible, correctly rendered Heroicons SVG vector.
 - **Fixed sizing for graphical children in auto-layout** — When placing an SVG node (via `createNodeFromSvg()`), an Ellipse, or any fixed-dimension child inside a frame that has `layoutMode` set, the auto-layout engine will stretch the child along the cross-axis by default. After appending any such child to an auto-layout parent, you MUST explicitly set both sizing axes to `'FIXED'`:
   ```javascript
   parent.appendChild(child);
@@ -369,10 +458,13 @@ These rules address common Figma Plugin API layout failures that produce visual 
 - **State ledger uses per-batch files** — master ledger at `/tmp/dsb-state-{RUN_ID}.json` is written by the coordinator (Phases 0-2) and READ ONLY for sub-agents. Each sub-agent writes to `/tmp/dsb-state-{RUN_ID}-{BATCH_ID}.json`. Coordinator merges batch files into master between tiers.
 - **Sub-agents MUST switch pages** — every `use_figma` script in a sub-agent MUST call `await figma.setCurrentPageAsync(page)` to its target page at the start. Page context resets between calls and other sub-agents may have switched pages between your calls.
 - **Sub-agents MUST NOT modify foundations** — sub-agents have read-only access to Color Styles, Text Styles, Effect Styles, and Number Variables created in Phase 1. They reference these by ID from the master state ledger but never create, rename, or delete them.
-- **Coordinator merges before next tier** — the coordinator MUST merge all batch state files into the master ledger before spawning the next tier's sub-agents. Tier 2 sub-agents need Tier 1 component IDs to create instances.
+- **Sub-agents MUST NOT create icon components** — all Heroicon components are created by the coordinator in Phase 2c. Sub-agents look up icon component IDs from the master state ledger `"icons"` key and create instances. If a needed icon is missing from the ledger, the sub-agent stops and reports to the coordinator — it never creates icons locally. This prevents naming conflicts and duplicate components across batches.
+- **Coordinator merges before next tier with validation** — the coordinator MUST merge all batch state files into the master ledger before spawning the next tier's sub-agents. After merging, validate the ledger: (1) every component in the batch assignment list has an entry, (2) every entry has a non-empty `componentSetId` and `pageId`, (3) `completedComponents` matches the expected list, (4) no `failedComponents` are silently ignored. If validation fails, the coordinator must resolve the issue (re-read the batch file, re-run the failed sub-agent) before proceeding. Tier 2 sub-agents need Tier 1 component IDs to create instances — a corrupt merge breaks all downstream work.
 - **Tier checkpoints replace per-component checkpoints** — the user approves all components in a tier as a batch, not one at a time. The coordinator presents verification reports + screenshots of every component built in the tier together.
 - **Image Analysis Sub-Agents are a separate spawned tier** — after builder sub-agents complete and state is merged, the coordinator spawns verification sub-agents before presenting to the user. These are separate Task tool invocations, not inline coordinator work. Verification sub-agents write results to `/tmp/dsb-verify-{RUN_ID}-*.json` files that the coordinator reads.
 - **Coordinator is an orchestrator, not an analyzer** — the coordinator's job is: merge state, spawn sub-agents, read reports, present results to the user, and make proceed/fix/retry decisions. It never takes screenshots, never examines images, and never makes visual judgments itself.
+- **Interim progress updates are mandatory** — between user checkpoints, the coordinator MUST post a brief status update to the user each time a sub-agent completes: "Batch X complete ({component names}). Batch Y still in progress." This prevents long silences that erode trust and enables early course correction if a batch is taking unexpectedly long.
+- **Sub-agent context budget** — complex components (Card, Navigation, Dropdown) consume significant context. Assignment rules: (1) never assign more than 3 components per sub-agent in Tier 1 or more than 2 in Tier 2, (2) each sub-agent should load ONLY the relevant component sections from design-system-spec.md (not the full 680-line file) — the coordinator extracts and pastes the relevant sections into the sub-agent prompt, (3) if a single component has >20 variants, it gets its own dedicated sub-agent, (4) the heroicons-svg-reference.md should be filtered to only the icons needed by the assigned components — the coordinator pastes only the relevant SVG entries.
 
 ---
 
@@ -380,23 +472,32 @@ These rules address common Figma Plugin API layout failures that produce visual 
 
 Every icon in the design system MUST be a Heroicons SVG vector node — never a Unicode character, never a text node, never a blank frame.
 
-### Mandatory steps for every component that uses icons
+### Icon creation and usage
 
-1. **Load the reference.** At the start of each component build (Step 2b), load [heroicons-svg-reference.md](references/heroicons-svg-reference.md) and identify which icons this component needs from the "Required Icons" column in the Component Quick Reference table above.
-
-2. **Create icon components.** For each needed icon, create it as a Figma `ComponentNode` using the helper function from the reference file. This makes icons available for INSTANCE_SWAP properties.
+**Phase 2c (coordinator-owned):** The coordinator creates ALL Heroicon components on a dedicated "Icons" page during Phase 2c, using `createHeroiconComponent()` from [heroicons-svg-reference.md](references/heroicons-svg-reference.md). All icon component IDs are recorded in the master state ledger under an `"icons"` key. This happens once — sub-agents never create icon components.
 
 ```javascript
-// Example: creating the check icon as a component
+// Example: coordinator creating the check icon as a shared component
 const checkSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
 const checkComp = createHeroiconComponent(checkSvg, 'check', 24);
+// Record checkComp.id in master state ledger: icons.check = checkComp.id
 ```
 
-3. **Embed icons inside components.** Place icon instances or SVG nodes as children of the appropriate frame, centered via auto-layout. For stateful icons (checkbox check, toggle check, radio dot), the icon MUST be a child of the control's box/thumb frame — never floating outside or adjacent to it.
+**Sub-agent usage (Phase 3):** Sub-agents look up icon component IDs from the master state ledger and create instances. They do NOT create new icon components.
 
-4. **Recolor after import.** SVGs import with black strokes. Use the `recolorIcon()` helper from the reference to change stroke colors (e.g. white for check icons inside filled checkboxes, primary color for active states).
+```javascript
+// Sub-agent: create an instance of the shared check icon
+const checkIconId = masterLedger.icons['check'];
+const checkInstance = figma.getNodeById(checkIconId).createInstance();
+```
 
-5. **Size proportionally.** Icons inside small controls (checkbox, toggle thumb) should be sized proportionally — typically 12x12 or 16x16 inside 20x20 or 24x24 containers. Full-size icons (navigation, tile, input trailing) remain at 24x24 or 20x20.
+### Embedding and styling icons
+
+1. **Embed icons inside components.** Place icon instances as children of the appropriate frame, centered via auto-layout. For stateful icons (checkbox check, toggle check, radio dot), the icon MUST be a child of the control's box/thumb frame — never floating outside or adjacent to it.
+
+2. **Recolor after import.** SVGs import with black strokes. Use the `recolorIcon()` helper from the reference to change stroke colors (e.g. white for check icons inside filled checkboxes, primary color for active states).
+
+3. **Size proportionally.** Icons inside small controls (checkbox, toggle thumb) should be sized proportionally — typically 12x12 or 16x16 inside 20x20 or 24x24 containers. Full-size icons (navigation, tile, input trailing) remain at 24x24 or 20x20.
 
 ### Stateful control icons — critical patterns
 
@@ -646,6 +747,85 @@ If a sub-agent fails or a `use_figma` race condition is detected:
 3. Log the failure pattern (error message, which batch, which component) for debugging
 4. Never leave a tier half-built — either all batches in a tier complete or the coordinator finishes them sequentially
 
+### Session recovery protocol
+
+Building a full design system spans many hours and may exceed context window limits or hit session timeouts. The process must be resumable from any checkpoint.
+
+**Persistent state (beyond `/tmp/`):**
+
+At every user checkpoint (end of Phases 0, 1, 2, and each Tier in Phase 3), the coordinator writes a recovery snapshot to the workspace:
+
+```
+{WORKSPACE}/.dsb-recovery-{RUN_ID}.json
+```
+
+The recovery snapshot contains:
+```json
+{
+  "runId": "{RUN_ID}",
+  "fileKey": "{FILE_KEY}",
+  "currentPhase": "phase3-tier1",
+  "completedPhases": ["phase0", "phase1", "phase2"],
+  "creativeDirectionFile": "/tmp/dsb-creative-direction-{RUN_ID}.md",
+  "masterLedger": { /* full copy of current master state ledger */ },
+  "approvedTiers": ["tier1"],
+  "pendingTiers": ["tier2", "tier3"],
+  "lastCheckpoint": "2026-04-26T12:00:00Z",
+  "userApprovals": {
+    "phase0": "approved",
+    "phase1": "approved",
+    "phase2": "approved",
+    "tier1": "approved"
+  }
+}
+```
+
+**Resuming after a session break:**
+
+If the user says "resume" or "continue the design system", the coordinator:
+1. Reads the recovery snapshot from the workspace
+2. Reads the Figma file to confirm existing pages, styles, and components match the ledger
+3. Identifies the next incomplete phase or tier
+4. Resumes from that point — skipping all completed and approved phases
+5. Copies `/tmp/` state files from the recovery snapshot if they were lost
+
+**Context window management:**
+
+If the coordinator's context is filling up mid-tier:
+1. Complete the current sub-agent's batch (never abandon a batch mid-build)
+2. Write the recovery snapshot
+3. Tell the user: "Context limit approaching. Progress saved through {phase/tier}. Start a new session and say 'resume the design system' to continue."
+4. The new session's coordinator loads the recovery snapshot and continues
+
+### Rollback protocol
+
+If the user rejects a creative direction, requests a foundation token change after components are built, or needs to redo a phase:
+
+**Foundation token change (after components exist):**
+1. The coordinator identifies which components reference the changed token(s) by scanning the master state ledger
+2. The coordinator modifies the foundation token(s) in Phase 1 (Color Style, Text Style, etc.)
+3. Components that directly reference the changed token via Figma style/variable bindings will update automatically in Figma
+4. For components with hardcoded values derived from the token (e.g. recolored icon strokes, manually set fills), the coordinator spawns targeted fix sub-agents for each affected component
+5. After fixes, the coordinator re-runs Image Analysis Sub-Agents for all affected components
+6. The recovery snapshot is updated to reflect the change
+
+**Creative direction change (palette, typeface, or philosophy):**
+1. This is a major change. The coordinator warns the user: "Changing the creative direction will require rebuilding foundations and all components that reference them."
+2. If the user confirms, the coordinator:
+   - Backs up the current recovery snapshot as `{WORKSPACE}/.dsb-recovery-{RUN_ID}-backup-{N}.json`
+   - Re-runs Phase 0f (font check) and Phase 0h (creative direction artifact) with the new direction
+   - Re-runs Phase 1 to recreate all tokens
+   - Re-runs Phase 2e (documentation verification)
+   - Re-runs affected component tiers
+3. Components from approved tiers that do NOT reference changed tokens may be preserved — the coordinator makes this determination per-component
+
+**Single component redo:**
+If the user rejects a specific component at a tier checkpoint:
+1. The coordinator spawns a fix sub-agent for ONLY that component
+2. The fix sub-agent receives the user's feedback, the current component's node IDs, and the creative direction file
+3. After the fix, re-verification via Image Analysis Sub-Agent
+4. Only the fixed component is re-presented for approval
+
 ---
 
 ## Coordinator-Level CoVE (Cross-Batch Verification) — Delegated to Sub-Agents
@@ -727,14 +907,28 @@ Tier: {TIER_NUMBER}
 ## Prerequisites — Load These BEFORE Any use_figma Call
 1. Load the figma-use skill (Plugin API rules)
 2. Load the figma-generate-library skill (phase workflow, naming)
-3. Read the design system spec: {WORKSPACE}/references/design-system-spec.md
-4. Read the Heroicons SVG reference: {WORKSPACE}/references/heroicons-svg-reference.md
+3. Read the creative direction file: /tmp/dsb-creative-direction-{RUN_ID}.md
+   — reference this for all micro-decisions about visual treatment
+   (hover color shifts, shadow intensity, border weight, state language)
+
+NOTE: The coordinator has already extracted the relevant component
+specs and icon SVGs below. Do NOT load the full design-system-spec.md
+or heroicons-svg-reference.md — use only the excerpts provided to
+conserve context.
 
 ## Figma File
 File key: {FILE_KEY}
 
+## Component Specifications (extracted for your assigned components)
+{PASTE ONLY THE RELEVANT COMPONENT SECTIONS FROM design-system-spec.md}
+
+## Icon SVGs (only icons needed for your assigned components)
+{PASTE ONLY THE RELEVANT ICON SVG ENTRIES FROM heroicons-svg-reference.md,
+ INCLUDING THE HELPER FUNCTIONS}
+
 ## Foundation Token IDs (from Phase 1 — READ ONLY, do not modify)
 {PASTE FULL CONTENTS OF MASTER STATE LEDGER HERE}
+This includes the "icons" key with shared icon component IDs from Phase 2c.
 
 ## For Tier 2+ Only — Component IDs from Previous Tiers
 {PASTE COMPONENT IDS FROM MERGED MASTER LEDGER, OR "N/A" FOR TIER 1}
@@ -753,11 +947,19 @@ STEP 1 — CHAIN-OF-REASONING (Pre-Build Planning)
      containers, note that explicitly.
   d. Identify the 3-5 highest-risk failure modes for THIS component
   e. Trace dependencies: which foundation token IDs and icon SVGs needed
-  f. Plan build steps and variant matrix size
+  f. Plan build steps and calculate variant matrix size explicitly:
+     list every axis (types × states × sizes) and multiply. If the
+     product exceeds 30, split into sub-components BEFORE building.
+     Record the planned matrix dimensions.
 
 STEP 2 — INITIAL BUILD
-  a. Create a dedicated page for the component
-  b. Create needed Heroicon components from heroicons-svg-reference.md
+  a. Create a dedicated page using the exact name from the master
+     state ledger (registered by coordinator in Phase 2d)
+  b. Look up needed icon component IDs from the master state ledger
+     "icons" key (created by coordinator in Phase 2c). Create
+     instances from these shared icon components — do NOT create
+     new icon components. If an icon is missing from the ledger,
+     STOP and report to coordinator.
   c. Build base component with auto-layout + variable bindings
   d. LOAD PLACEHOLDER IMAGES — For every image container identified
      in Step 1c, call figma.createImageAsync() with the planned
@@ -845,11 +1047,16 @@ STEP 5 — FINAL REVISED ASSESSMENT
 - Colors 0-1 range, not 0-255
 - Never ALL_SCOPES — explicit scopes per variable type
 - INSTANCE_SWAP for icons, never a variant per icon
-- Variant matrix ≤ 30 — split if exceeded
+- Variant matrix ≤ 30 — calculate explicitly in Step 1f, split
+  BEFORE building if exceeded
 - Every use_figma script MUST call setCurrentPageAsync() to your
   target page at the start — page context resets between calls
 - Do NOT create or modify any foundation tokens (Color Styles,
   Text Styles, Effect Styles, Number Variables) — read only
+- Do NOT create new icon components — use instances from shared
+  icon component IDs in the master state ledger "icons" key
+- Reference the creative direction file for all visual judgment
+  calls (hover treatment, shadow intensity, color shifts, etc.)
 - All icons MUST be Heroicons SVGs via createNodeFromSvg()
 - Fixed sizing for graphical children in auto-layout:
   child.layoutSizingHorizontal = 'FIXED';
