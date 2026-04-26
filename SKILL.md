@@ -84,6 +84,12 @@ If not connected, direct the user to: https://developers.figma.com/docs/figma-mc
 
 ---
 
+## Execution Mindset
+
+This process is not time-sensitive. Each verification step is the most valuable part of the work. Take your time. Thoroughness is more important than speed. There is no progress bar — only quality.
+
+---
+
 ## Build Order (Critical — Never Deviate)
 
 ```
