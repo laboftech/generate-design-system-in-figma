@@ -477,7 +477,9 @@ Every icon in the design system MUST be a Heroicons SVG vector node — never a 
 **Phase 2c (coordinator-owned):** The coordinator creates ALL Heroicon components on a dedicated "Icons" page during Phase 2c, using `createHeroiconComponent()` from [heroicons-svg-reference.md](references/heroicons-svg-reference.md). All icon component IDs are recorded in the master state ledger under an `"icons"` key. This happens once — sub-agents never create icon components.
 
 ```javascript
-// Example: coordinator creating the check icon as a shared component
+// Example: coordinator creating the check icon as a shared component.
+// createHeroiconComponent keeps the SVG frame intact as a single child
+// with SCALE constraints — it does NOT unwrap individual vector children.
 const checkSvg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>`;
 const checkComp = createHeroiconComponent(checkSvg, 'check', 24);
 // Record checkComp.id in master state ledger: icons.check = checkComp.id
@@ -515,6 +517,76 @@ const checkInstance = figma.getNodeById(checkIconId).createInstance();
 
 ---
 
+## Icon Color Mapping (Mandatory — Icons Must NEVER Remain Default Black)
+
+Icons import with `stroke="black"` from the SVG source. **Every icon instance MUST be recolored** during component build (Step 2) to match its visual context. Leaving icons as default black is treated as a defect — it causes invisible icons on dark backgrounds, missing semantic meaning, and a visually unfinished result.
+
+### Color-by-Context Rules
+
+1. **Icons on colored or dark backgrounds → White.** When the icon sits inside a filled/colored container (checkbox checked state, toggle on-state thumb, dark tooltip, primary button), use white (`#ffffff` or the Shades/White style).
+2. **Icons on light/neutral backgrounds → Neutral/500 to Neutral/700.** When the icon sits on a white or near-white surface, use a mid-to-dark neutral from the palette. The exact shade depends on the icon's visual weight needed: Neutral/500 for subtle/secondary icons, Neutral/600 for standard icons, Neutral/700 for prominent icons.
+3. **Icons indicating semantic state → Semantic color.** Error state icons use Error/Dark, success icons use Accent/Dark (green), active/selected indicators use Primary/Vivid, link/info icons use Accent/Link.
+4. **Icons in disabled states → Neutral/300.** Disabled icons should use a very light neutral to convey inactivity.
+5. **CRITICAL: Always verify the parent background.** Never assume an icon is on a dark overlay — inspect the actual parent frame's `fills` array. A common mistake is coloring gallery navigation arrows white assuming they sit on a dark image overlay, when they actually sit inside white circular button frames.
+
+### Component-Specific Icon Color Table
+
+Use the design system's palette tokens (not hardcoded hex values) when available. The table below uses token names; resolve to actual hex values from the Color Styles created in Phase 1.
+
+| Component | Icon(s) | State / Variant | Color Token |
+|---|---|---|---|
+| Checkbox | `check`, `minus` | Checked, Indeterminate | Shades/White |
+| Toggle | `check` | On, Disabled On | Shades/White |
+| Tooltip | `x-mark` | Dark theme (all variants) | Shades/White |
+| Tooltip | `x-mark` | Light theme (all variants) | Neutrals/500 |
+| Button | `arrow-path` (loading) | Primary variant | Shades/White |
+| Button | `arrow-path` (loading) | Secondary variant | Neutrals/600 |
+| Button | `arrow-path` (loading) | Outline variant | Primary/Vivid |
+| Callout | `information-circle` | Info variant | Accent/Link |
+| Callout | `check-circle` | Success variant | Accent/Dark |
+| Callout | `exclamation-triangle` | Warning variant | Accent/Link or Error/Dark |
+| Accordion | `chevron-down` | All states | Neutrals/600 |
+| Dropdown | `chevron-down` | All states | Neutrals/500 |
+| Dropdown | `home` (leading icon) | All states | Neutrals/600 |
+| Dropdown | `check` (selected) | Open menu | Primary/Vivid |
+| Input | `eye`, `eye-slash` | Default, Hover, Focused, Filled | Neutrals/500 |
+| Input | `eye`, `eye-slash` | Error | Error/Dark |
+| Input | `eye`, `eye-slash` | Disabled | Neutrals/300 |
+| Tabs | all tab icons | Default | Neutrals/500 |
+| Tabs | all tab icons | Hover | Neutrals/700 |
+| Tabs | all tab icons | Active / Selected | Primary/Vivid |
+| Tabs | all tab icons | Disabled | Neutrals/300 |
+| Navigation | search, bell, user | Top nav bar | Neutrals/700 |
+| Navigation | home, squares, etc. | Bottom nav bar | Neutrals/500 |
+| Navigation | `chevron-right` | Breadcrumb separator | Neutrals/400 |
+| Tile | all tile icons | Default | Neutrals/600 |
+| Tile | all tile icons | Hover, Focused | Neutrals/700 |
+| Tile | all tile icons | Selected | Primary/Vivid |
+| Card | `photo` (placeholder) | All states | Neutrals/300 |
+| Card | `heart`, `share` | Default, Hover | Neutrals/500 |
+| Product Card | `photo` (placeholder) | All states | Neutrals/300 |
+| Product Card | `heart` | Default, Hover | Neutrals/500 |
+| Product Card | `heart` | Wishlisted | Error/Dark |
+| Image Gallery | `photo` (placeholder) | All states | Neutrals/300 |
+| Image Gallery | `chevron-left/right` | Navigation arrows | **Check parent fill** — dark on white buttons, white on dark overlays |
+| Chip | `x-mark` | Selected+Remove | Neutrals/500 |
+
+### Recoloring code pattern
+
+After creating an icon instance and placing it inside its parent component, immediately recolor it:
+
+```javascript
+// Use the recolorIcon() helper from heroicons-svg-reference.md
+// Colors are 0-1 range (Figma standard)
+const inst = figma.getNodeById(iconCompId).createInstance();
+parentFrame.appendChild(inst);
+recolorIcon(inst, 1, 1, 1); // white for icons on dark/colored backgrounds
+// OR
+recolorIcon(inst, 0.56, 0.49, 0.43); // Neutrals/500 for icons on light backgrounds
+```
+
+---
+
 ## CoVE-Based Component Verification (The Primary Deliverable)
 
 Verification is not a gate you pass through after the real work. Verification IS the real work. A built component without a verification report is like code without tests — it may exist, but it cannot be trusted or shipped. The verification report is what the user evaluates at each checkpoint. It is the visible output of each tier.
@@ -541,6 +613,7 @@ After the initial build (Step 2), generate 3-5 specific, falsifiable questions a
 - At least one question MUST verify **spacing consistency** — that padding, gaps, and margins within the component and across its variants use the declared spacing tokens and are visually uniform. Look for asymmetric padding, inconsistent gaps between label and field, or variants where the internal spacing rhythm breaks.
 - At least one question MUST verify that **no variant appears chopped off, clipped, or partially hidden** — every variant's content (text, icons, nested elements, expanded states) must be fully visible within its bounds without any truncation, overflow hiding, or content cut-off.
 - At least one question MUST verify that **no variant appears unnaturally shrunk** — every variant should render at its intended dimensions, not collapsed to a tiny/miniature size. This commonly occurs when `combineAsVariants` freezes a HUG-sized variant at a small placeholder size, or when auto-layout compresses children to near-zero height. A variant that is significantly smaller than its siblings in the grid is a defect.
+- At least one question MUST verify **icon color correctness** — that icon instances use contextually appropriate colors (white on colored/dark backgrounds, neutral tones on light backgrounds, semantic colors for error/success/active states) rather than remaining default black. Check that no icon is invisible against its background and that state-specific icons (error, selected, disabled) use the correct semantic color. Refer to the "Icon Color Mapping" section for expected colors per component.
 - Phrase each question to make the FAILURE case concrete, forcing the verifier to look for both the correct and incorrect outcome.
 
 **Example verification questions by component:**
@@ -564,6 +637,7 @@ After the initial build (Step 2), generate 3-5 specific, falsifiable questions a
 | Accordion (clipping) | "In the Open variant, is the full body content (all text lines, nested elements) completely visible below the header, OR is the body text cut off or hidden below the component set's bottom edge?" |
 | Dropdown (clipping) | "In the Open/Selected variants, is the full dropdown menu panel (all menu items, checkmarks, scroll area) completely visible, OR is the menu clipped at the bottom because the component set's bounding box was not expanded after adding the menu?" |
 | Any component (shrinkage) | "Are ALL variants rendered at their intended full dimensions — matching or comparable to their sibling variants in the grid — OR do any variants appear unnaturally tiny/miniature, collapsed to a fraction of the expected size, with content compressed or barely visible?" |
+| Any component with icons (color) | "Do ALL icon instances use contextually appropriate colors — white on colored/dark backgrounds (e.g. checkbox check, toggle check, dark tooltip x-mark, primary button spinner), neutral tones on light backgrounds (e.g. accordion chevron, dropdown chevron, input eye), and semantic colors for stateful icons (e.g. error-red for input error eye, primary for selected check, green for success callout) — OR are any icons still default black, invisible against their background, or using a wrong color for their state?" |
 
 ### Step 4 — Independent Verification (Screenshot-Based)
 
@@ -648,6 +722,9 @@ Pre-defined descriptions of what common defects LOOK like in screenshots. Refere
 | Inconsistent spacing | Padding or gaps that are visibly uneven across variants of the same component — e.g., a Default variant has generous internal padding but the Hover variant appears cramped, or the gap between label and field differs between "No Label" and "With Label" variants of the same component |
 | White child frame blocking background | A region of white within a component that should show a background color — caused by a child frame retaining a white fill that paints over the parent's background. Typically appears as a white rectangle covering part of the intended background |
 | Unnaturally shrunk variant | A variant that is significantly smaller than its siblings in the component set grid — appearing as a tiny/miniature frame with compressed or barely visible content. Caused by `combineAsVariants` freezing a HUG-sized variant at its small placeholder dimensions, or auto-layout collapsing children to near-zero height |
+| Stretched SVG icon from child unwrapping | An icon whose strokes appear horizontally or vertically elongated — the bounding box is clearly not square (e.g. wider than tall). Caused by unwrapping individual vector children from the `createNodeFromSvg()` frame and moving them into the component separately, which breaks the SVG viewBox coordinate mapping. Multi-path icons (eye, cog, tag) are most affected because their paths get repositioned independently |
+| Invisible icon (color matches background) | An icon that is completely invisible because its stroke color matches the parent frame's background fill — e.g., white icon on a white button, or black icon on a dark tooltip. The icon frame is present and correctly sized but nothing is visible inside it. Verify by inspecting both the icon's stroke color and the parent's fill |
+| Default black icon on colored/dark background | An icon that is technically visible but uses default black strokes (`stroke="black"` from SVG import) on a colored or dark background where white or a semantic color was expected. The icon has low contrast and feels unfinished. Common when builders forget to call `recolorIcon()` after placing icon instances |
 
 ### Common Defects by Component
 
@@ -675,6 +752,8 @@ Use these as input when generating verification questions (Step 3):
 | Tooltip | **Caret/arrow inconsistently positioned across variants** — using raw width/2 offset instead of diagonal-aware offset for the rotated square causes some carets to be too shallow and others to appear misaligned |
 | Any component (spacing) | **Inconsistent internal spacing across variants** — one variant uses generous padding while another of the same component type has cramped spacing, or gap between label and field varies across variants. Caused by hardcoded spacing values instead of shared spacing variable references |
 | Any component (clipping) | **Variant content partially hidden** — text, icons, or nested content is cut off at the bottom/right edge of the variant frame or the component set bounding box. Especially common after `combineAsVariants` followed by content additions, or when the component set `clipsContent` was not disabled |
+| Any component with icons (color) | **Icon instances left as default black** — the builder creates icon instances correctly but forgets to call `recolorIcon()` to set contextually appropriate colors. Results in: invisible icons on dark/colored backgrounds (checkbox checks, toggle checks, dark tooltips), missing semantic differentiation (error icons same color as default), and visually unfinished components. This is the second most frequently missed step after placeholder images. |
+| Image Gallery | **Navigation arrows invisible** — chevron-left/right icons colored white assuming dark overlay background, but the arrow buttons actually have white fills, making icons invisible. Always verify parent frame fill before choosing icon color |
 
 ---
 
@@ -995,6 +1074,12 @@ STEP 3 — GENERATE VERIFICATION QUESTIONS
     dimensions, comparable to its siblings in the grid. A variant
     that is significantly smaller than others is a defect (often
     caused by combineAsVariants freezing HUG-sized placeholders)
+  - At least one MUST verify ICON COLOR CORRECTNESS — that icon
+    instances use contextually appropriate colors (white on
+    colored/dark backgrounds, neutral tones on light backgrounds,
+    semantic colors for error/success/active states), not default
+    black. Check that no icon is invisible against its background.
+    Refer to the "Icon Color Mapping" section.
   - Phrase each to make the FAILURE case concrete
 
 STEP 4 — INDEPENDENT VERIFICATION (Screenshot-Based)
@@ -1042,6 +1127,9 @@ STEP 5 — FINAL REVISED ASSESSMENT
 | Inconsistent spacing | Padding or gaps visibly uneven across variants — one variant cramped while another generous, or label-to-field gap varies |
 | White child frame blocking background | White rectangle covering part of intended background color — child frame retains white fill over parent's background |
 | Unnaturally shrunk variant | Variant significantly smaller than siblings in the grid — tiny/miniature frame with compressed or barely visible content, caused by combineAsVariants freezing HUG-sized variant at small placeholder dimensions |
+| Stretched SVG icon | Icon strokes horizontally/vertically elongated — bounding box not square. Caused by unwrapping SVG children from createNodeFromSvg() frame |
+| Invisible icon (color matches bg) | Icon completely invisible because stroke color matches parent fill (white on white, black on dark). Frame present but nothing visible |
+| Default black icon on dark bg | Icon uses default black strokes on colored/dark background where white or semantic color expected. Low contrast, unfinished appearance |
 
 ## Critical Rules
 - Colors 0-1 range, not 0-255
@@ -1058,6 +1146,16 @@ STEP 5 — FINAL REVISED ASSESSMENT
 - Reference the creative direction file for all visual judgment
   calls (hover treatment, shadow intensity, color shifts, etc.)
 - All icons MUST be Heroicons SVGs via createNodeFromSvg()
+- ICON COLORS ARE MANDATORY — Every icon instance MUST be
+  recolored during build (Step 2), not left as default black.
+  Use the recolorIcon() helper immediately after placing each
+  icon instance. Refer to the "Icon Color Mapping" section in
+  the main skill file for the correct color per component and
+  state. Key rules: white on colored/dark backgrounds, Neutral/
+  500-700 on light backgrounds, semantic colors for error/
+  success/active states. ALWAYS inspect the parent frame's fill
+  before choosing the icon color — never assume a background
+  color without checking.
 - Fixed sizing for graphical children in auto-layout:
   child.layoutSizingHorizontal = 'FIXED';
   child.layoutSizingVertical = 'FIXED';
@@ -1173,6 +1271,9 @@ Figma file key: {FILE_KEY}
 | Inconsistent spacing | Padding or gaps visibly uneven across variants — one variant cramped while another generous, or label-to-field gap varies |
 | White child frame blocking background | White rectangle covering part of intended background color — child frame retains white fill over parent's background |
 | Unnaturally shrunk variant | Variant significantly smaller than siblings in the grid — tiny/miniature frame with compressed or barely visible content, caused by combineAsVariants freezing HUG-sized variant at small placeholder dimensions |
+| Stretched SVG icon | Icon strokes horizontally/vertically elongated — bounding box not square. Caused by unwrapping SVG children from createNodeFromSvg() frame |
+| Invisible icon (color matches bg) | Icon completely invisible because stroke color matches parent fill (white on white, black on dark). Frame present but nothing visible |
+| Default black icon on dark bg | Icon uses default black strokes on colored/dark background where white or semantic color expected. Low contrast, unfinished appearance |
 
 ## Common Defects by Component
 {PASTE THE RELEVANT ROWS FROM THE "Common Defects by Component"
@@ -1217,6 +1318,12 @@ Requirements:
   unnaturally shrunk — every variant should render at its
   intended full dimensions, comparable to its siblings. A
   variant significantly smaller than others is a defect.
+- At least one question MUST verify ICON COLOR CORRECTNESS —
+  that icon instances use contextually appropriate colors
+  (white on dark/colored backgrounds, neutral tones on light
+  backgrounds, semantic colors for error/success/active states)
+  rather than default black. Verify no icon is invisible
+  against its parent background.
 - Phrase each to make the FAILURE case concrete
 
 ### Step 3 — Answer Each Question (Evidence-Based)
@@ -1351,6 +1458,20 @@ h. Variant completeness (no clipping or shrinkage):
    components have variants where content is truncated, or where
    a variant is significantly smaller than the others in its
    component set grid?"
+
+i. Icon color consistency:
+   "Do ALL components use contextually correct icon colors from
+   the design system palette — white icons on colored/dark
+   backgrounds (checkbox checks, toggle checks, dark tooltip
+   x-marks, primary button spinners), neutral tones on light
+   backgrounds (accordion chevrons, dropdown chevrons, input
+   trailing icons), and semantic colors for stateful icons
+   (error red, success green, primary for active/selected) —
+   or have some sub-agents left icons as default black while
+   others correctly recolored them? Compare icon colors across
+   components that use the same icon in similar contexts (e.g.
+   check icon in Checkbox vs Toggle vs Dropdown should all be
+   correctly colored for their respective backgrounds)."
 
 ### Step 3 — Answer Each Question (Evidence-Based)
 For EVERY question, use this MANDATORY format:

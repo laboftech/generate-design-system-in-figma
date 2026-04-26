@@ -16,6 +16,9 @@ Embed these in every `use_figma` call that creates icons.
 function createHeroicon(svgString, name, size) {
   const node = figma.createNodeFromSvg(svgString);
   node.name = name;
+  // Only resize if a non-default size is requested. The SVG frame
+  // is already 24x24 from the viewBox — resizing at 24 is a no-op
+  // but resizing to other values scales the frame uniformly.
   if (size && size !== 24) {
     node.resize(size, size);
   }
@@ -32,24 +35,19 @@ function createHeroiconComponent(svgString, name, size) {
   comp.name = 'Icon/' + name;
   comp.resize(sz, sz);
 
+  // CRITICAL: Keep the SVG frame intact — do NOT unwrap children.
+  // createNodeFromSvg() produces a frame sized to the viewBox (24x24).
+  // Unwrapping individual vectors loses the viewBox coordinate space,
+  // causing multi-path icons (eye, cog, tag, etc.) to stretch or
+  // misalign. Keeping the frame preserves all internal path positions.
   const svgNode = figma.createNodeFromSvg(svgString);
+  svgNode.name = 'svg';
   svgNode.x = 0;
   svgNode.y = 0;
-  svgNode.resize(sz, sz);
-
-  // Move all children from the SVG frame into the component
-  while (svgNode.children.length > 0) {
-    comp.appendChild(svgNode.children[0]);
-  }
-  svgNode.remove();
-
-  comp.layoutMode = 'HORIZONTAL';
-  comp.primaryAxisAlignItems = 'CENTER';
-  comp.counterAxisAlignItems = 'CENTER';
-  comp.paddingLeft = 0;
-  comp.paddingRight = 0;
-  comp.paddingTop = 0;
-  comp.paddingBottom = 0;
+  // Do NOT call svgNode.resize() — the frame is already 24x24 from
+  // the viewBox. Resizing can distort children non-uniformly.
+  comp.appendChild(svgNode);
+  svgNode.constraints = { horizontal: 'SCALE', vertical: 'SCALE' };
 
   return comp;
 }
