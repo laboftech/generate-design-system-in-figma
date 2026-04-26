@@ -329,6 +329,25 @@ Load [design-system-spec.md](references/design-system-spec.md) for full anatomy,
 ### Quality rules
 - **Anti-patterns enforced** — Section 6 of design-system-spec.md lists banned patterns (no emojis, no Inter, no #000000, no fabricated data, Heroicons only, etc.). Load and enforce during every phase.
 - **Elite creative quality is non-negotiable** — Every design decision (color, type, spacing, radius, shadow, proportion) must reflect the standard of an elite North American design agency. Default, safe, or generic choices are treated as defects. When in doubt, make the bolder creative choice. Refer to the "Creative & Quality Bar" section above for the full quality mandate.
+- **Spacing tokens are mandatory — no hardcoded spacing values** — Every component MUST use the Number Variables declared in the "Spacing" collection (2xs, xs, sm, md, lg, xl, 2xl, 3xl, 4xl) for all padding, gaps, and margins. Hardcoded pixel values for spacing are treated as defects. Related components (e.g. Button, Input, Dropdown) must use the same spacing tokens for equivalent padding/gap roles to ensure visual rhythm across the system. During build, bind spacing via variable references; during verification, confirm spacing consistency both within a component's variants and across sibling components.
+
+### Auto-layout & sizing pitfall rules
+
+These rules address common Figma Plugin API layout failures that produce visual defects. Every builder sub-agent MUST internalize these before writing any `use_figma` code.
+
+- **Background fill only paints the frame's own bounds, never its overflow** — If a container frame is `FIXED` height and its children overflow (because `clipsContent = false`), the frame's fill only paints its declared height — not the overflowing content area. This looks like an accidental colored stripe equal to the frame's padding or declared height. **Fix:** Set `primaryAxisSizingMode = 'AUTO'` (HUG) on the container so it grows to wrap content before applying background fills. Always ensure the frame's declared height matches or exceeds its content.
+
+- **`combineAsVariants` freezes every variant at its current dimensions as FIXED** — `combineAsVariants` locks each variant's width and height to `FIXED` at whatever size the frame had at combine-time. Variants built with `HUG` sizing and short/empty placeholder text get frozen at that small size permanently. **Fix:** After every `combineAsVariants` call, immediately loop through all `compSet.children` and explicitly call `variant.resize(TARGET_W, TARGET_H)` + set `variant.primaryAxisSizingMode = 'FIXED'` on every variant to enforce uniform sizing before proceeding.
+
+- **Never give both children `layoutSizingVertical = 'FILL'` in the same axis** — When two sibling children both use `FILL` on the same axis inside an auto-layout parent, Figma divides the available space equally between them. A label-above-field stack (e.g. Dropdown With Label, Input With Label) looks squashed — field is only half its expected height. Example: a 44px parent with two FILL children gives each only 20px. **Fix:** The label must be `layoutSizingVertical = 'FIXED'` at its text height (e.g. 20px). Only the field/control below it should use `'FILL'` to take the remaining space. Also size the parent variant frame tall enough: `label height + gap + field height` (e.g. 20 + 4 + 44 = 68px).
+
+- **A rotated-square caret requires a diagonal-aware offset, not half the raw width** — A 10×10px square rotated 45° has a rendered bounding box of ~14×14px (diagonal = 10√2 ≈ 14.1px). Its visual center is 7px from any side of the bounding box, not 5px (half the raw width). Using `-5` places the caret too shallow into the tooltip body, causing inconsistent arrow positioning across variants. **Fix:** To place the caret center exactly at a frame edge, use `caret.x = edgeX - 7` and `caret.y = edgeY - 7`.
+
+- **After adding taller content to a variant, always resize the component set and disable its clipping** — `combineAsVariants` sets the component set bounding box to its contents at combine-time and sets `clipsContent = true`. If you later add taller content to a variant (e.g. body text in an Open accordion, an expanded dropdown menu), the component set does not auto-grow — it stays at the original height and silently clips everything below. **Fix:** After any structural change to a variant, always: (1) set `compSet.clipsContent = false`, (2) check `compSet.height` against the tallest variant's `y + height`, (3) call `compSet.resize(w, newHeight)` to fully contain all variants.
+
+- **Always set explicit padding on header/trigger frames; never rely on HUG for breathing room** — If a header frame (accordion trigger, dropdown header, collapsible) uses `primaryAxisSizingMode = 'AUTO'` (HUG) with no padding set, it collapses to exactly the text height (e.g. 20px) with zero breathing room. **Fix:** Always set `paddingTop`, `paddingBottom`, `paddingLeft`, `paddingRight` explicitly on trigger/header frames (e.g. 16px vertical, 20px horizontal), set `primaryAxisSizingMode = 'FIXED'`, and define an explicit height (e.g. 52px = 16 + 20 + 16). Also set `counterAxisAlignItems = 'CENTER'` for vertical centering of text and icons.
+
+- **When applying a background color to a variant, clear white fills on child frames first** — Child frames with their own white `fills = [{type:'SOLID', color:{r:1,g:1,b:1}}]` paint on top of the parent frame's fill, blocking the background color in those regions. Only part of the component shows the intended background. **Fix:** Before or after setting `variant.fills`, walk all descendant `FRAME` nodes (excluding icon/SVG containers and dividers) and set `node.fills = []` on any that have a white or near-white solid fill (`r > 0.92 && g > 0.92 && b > 0.92`). This lets the parent background show through uniformly.
 
 ### CoVE verification rules
 - **CoVE is mandatory per component** — after building each component, the full CoVE process (Steps 3-5) must be followed. Never skip to "looks good" or use a generic checklist.
@@ -408,6 +427,9 @@ After the initial build (Step 2), generate 3-5 specific, falsifiable questions a
 - At least one question must test **cross-variant consistency** (e.g., "Are all checkbox boxes the same size across checked/unchecked/indeterminate variants?").
 - At least one must target a **known anti-pattern** for this component type (reference the anti-pattern visual signatures table below).
 - **If the component has ANY image containers** (hero images, thumbnails, avatars, media areas), at least one question MUST verify that every image container displays a real photograph (visual texture, colors, detail) rather than a flat solid-color rectangle. This is the most commonly missed defect.
+- At least one question MUST verify **spacing consistency** — that padding, gaps, and margins within the component and across its variants use the declared spacing tokens and are visually uniform. Look for asymmetric padding, inconsistent gaps between label and field, or variants where the internal spacing rhythm breaks.
+- At least one question MUST verify that **no variant appears chopped off, clipped, or partially hidden** — every variant's content (text, icons, nested elements, expanded states) must be fully visible within its bounds without any truncation, overflow hiding, or content cut-off.
+- At least one question MUST verify that **no variant appears unnaturally shrunk** — every variant should render at its intended dimensions, not collapsed to a tiny/miniature size. This commonly occurs when `combineAsVariants` freezes a HUG-sized variant at a small placeholder size, or when auto-layout compresses children to near-zero height. A variant that is significantly smaller than its siblings in the grid is a defect.
 - Phrase each question to make the FAILURE case concrete, forcing the verifier to look for both the correct and incorrect outcome.
 
 **Example verification questions by component:**
@@ -426,6 +448,11 @@ After the initial build (Step 2), generate 3-5 specific, falsifiable questions a
 | Tile | "Are all tile icons rendered as square shapes (equal width and height), OR has auto-layout stretched any icon into a tall or wide rectangle with visibly distorted proportions?" |
 | Any icon-heavy component | "Do ALL SVG icons maintain their original square aspect ratio (e.g. 24x24, 20x20), OR have any been stretched into non-square rectangles by auto-layout? Look for icons whose strokes appear elongated or whose bounding boxes are visibly taller than wide (or vice versa)." |
 | Domain-specific | "Do ALL media areas, thumbnails, and avatar slots in this component display loaded photographs from picsum.photos, OR are any showing as flat solid-color fills?" |
+| Any component (spacing) | "Is the internal padding (top, bottom, left, right) visually uniform and consistent across ALL variants of this component, OR do some variants have noticeably tighter or looser spacing than others? Compare the gap between labels and fields, the padding around icons, and the margins between repeated elements." |
+| Any component (clipping) | "Are ALL variants of this component fully visible — text, icons, borders, and nested content render completely within the variant's bounds — OR does any variant appear chopped off, truncated, or partially hidden at any edge (especially the bottom or right)?" |
+| Accordion (clipping) | "In the Open variant, is the full body content (all text lines, nested elements) completely visible below the header, OR is the body text cut off or hidden below the component set's bottom edge?" |
+| Dropdown (clipping) | "In the Open/Selected variants, is the full dropdown menu panel (all menu items, checkmarks, scroll area) completely visible, OR is the menu clipped at the bottom because the component set's bounding box was not expanded after adding the menu?" |
+| Any component (shrinkage) | "Are ALL variants rendered at their intended full dimensions — matching or comparable to their sibling variants in the grid — OR do any variants appear unnaturally tiny/miniature, collapsed to a fraction of the expected size, with content compressed or barely visible?" |
 
 ### Step 4 — Independent Verification (Screenshot-Based)
 
@@ -505,6 +532,11 @@ Pre-defined descriptions of what common defects LOOK like in screenshots. Refere
 | Wrong color style | A color that doesn't match any swatch in the design system palette — e.g., pure black (#000) borders, generic untinted gray fills, or neon-bright accents |
 | Squircle distortion | A rounded rectangle whose corner radii appear exaggerated or inconsistent — typically caused by auto-layout stretching the frame, making it look like a "squircle" instead of a subtly rounded square |
 | Detached state indicator | An icon or dot that is visually adjacent to but clearly outside the control frame — e.g., a checkmark floating to the right of the checkbox box instead of centered inside it |
+| Chopped-off / clipped variant | A variant whose content (text, icons, expanded body, menu panel) is abruptly cut off at the bottom or right edge — the component set's bounding box is too small and `clipsContent = true` hides the overflow. Often affects Open accordion, expanded dropdown, or any variant with dynamically taller content added after `combineAsVariants` |
+| Background fill stripe | A thin horizontal band of color where a full-component background was intended — the frame's fill only paints its declared (FIXED) height while children overflow beyond it. Looks like an accidental colored stripe at the top of the component |
+| Inconsistent spacing | Padding or gaps that are visibly uneven across variants of the same component — e.g., a Default variant has generous internal padding but the Hover variant appears cramped, or the gap between label and field differs between "No Label" and "With Label" variants of the same component |
+| White child frame blocking background | A region of white within a component that should show a background color — caused by a child frame retaining a white fill that paints over the parent's background. Typically appears as a white rectangle covering part of the intended background |
+| Unnaturally shrunk variant | A variant that is significantly smaller than its siblings in the component set grid — appearing as a tiny/miniature frame with compressed or barely visible content. Caused by `combineAsVariants` freezing a HUG-sized variant at its small placeholder dimensions, or auto-layout collapsing children to near-zero height |
 
 ### Common Defects by Component
 
@@ -527,6 +559,11 @@ Use these as input when generating verification questions (Step 3):
 | Card | **Image containers are flat solid-color rectangles instead of loaded photos from picsum.photos** (this is the single most common Card defect — every hero image, compact thumbnail, and summary thumbnail must show a real photograph); action icons (heart, share) are blank; pagination dots missing or uniform color |
 | Navigation | Hamburger icon is manually drawn lines instead of bars-3 SVG; notification bell is blank; **user avatar area is a blank circle or solid rectangle instead of a loaded photo or user-circle SVG** |
 | Any component with media areas | **Image containers left as flat solid-color rectangles** — the agent builds the frame structure correctly but forgets to call `figma.createImageAsync()` to load placeholder photos. This is the most frequently missed step across all components with image slots. |
+| Accordion | **Open variant body content chopped off** — the component set was not resized after adding body text to the Open variant, so `clipsContent = true` hides everything below the original bounding box. Also: header/trigger frame has zero padding, making the label look squashed with no breathing room |
+| Dropdown | **Open menu panel clipped or invisible** — menu items extend beyond the component set's bottom edge and are silently clipped. Also: "With Label" variant squashed because both label and input field use `layoutSizingVertical = 'FILL'` |
+| Tooltip | **Caret/arrow inconsistently positioned across variants** — using raw width/2 offset instead of diagonal-aware offset for the rotated square causes some carets to be too shallow and others to appear misaligned |
+| Any component (spacing) | **Inconsistent internal spacing across variants** — one variant uses generous padding while another of the same component type has cramped spacing, or gap between label and field varies across variants. Caused by hardcoded spacing values instead of shared spacing variable references |
+| Any component (clipping) | **Variant content partially hidden** — text, icons, or nested content is cut off at the bottom/right edge of the variant frame or the component set bounding box. Especially common after `combineAsVariants` followed by content additions, or when the component set `clipsContent` was not disabled |
 
 ---
 
@@ -734,6 +771,18 @@ STEP 3 — GENERATE VERIFICATION QUESTIONS
   - If the component has ANY image containers, at least one question
     MUST verify that every image area shows a real photograph (not
     a flat solid-color rectangle)
+  - At least one MUST verify spacing consistency — that padding,
+    gaps, and margins use the declared spacing tokens and are
+    visually uniform across all variants
+  - At least one MUST verify that NO variant appears chopped off,
+    clipped, or partially hidden — every variant's content (text,
+    icons, expanded states) must be fully visible within its
+    bounds without truncation or overflow hiding
+  - At least one MUST verify that NO variant appears unnaturally
+    shrunk — every variant should render at its intended full
+    dimensions, comparable to its siblings in the grid. A variant
+    that is significantly smaller than others is a defect (often
+    caused by combineAsVariants freezing HUG-sized placeholders)
   - Phrase each to make the FAILURE case concrete
 
 STEP 4 — INDEPENDENT VERIFICATION (Screenshot-Based)
@@ -776,6 +825,11 @@ STEP 5 — FINAL REVISED ASSESSMENT
 | Image container without image | Flat solid-color rectangle where a photo should be |
 | Clipped text | Text cut off mid-character at container edge |
 | Squircle distortion | Exaggerated/inconsistent corner radii from auto-layout stretching |
+| Chopped-off / clipped variant | Variant content abruptly cut off at bottom or right edge — component set bounding box too small and clipsContent hides overflow |
+| Background fill stripe | Thin band of color where a full background was intended — frame fill only paints its FIXED height while children overflow |
+| Inconsistent spacing | Padding or gaps visibly uneven across variants — one variant cramped while another generous, or label-to-field gap varies |
+| White child frame blocking background | White rectangle covering part of intended background color — child frame retains white fill over parent's background |
+| Unnaturally shrunk variant | Variant significantly smaller than siblings in the grid — tiny/miniature frame with compressed or barely visible content, caused by combineAsVariants freezing HUG-sized variant at small placeholder dimensions |
 
 ## Critical Rules
 - Colors 0-1 range, not 0-255
@@ -800,6 +854,27 @@ STEP 5 — FINAL REVISED ASSESSMENT
       'https://picsum.photos/seed/{name}/{width}/{height}');
     frame.fills = [{ type: 'IMAGE', scaleMode: 'FILL',
       imageHash: img.hash }];
+- USE DECLARED SPACING TOKENS — All padding, gaps, and margins
+  must reference the Spacing collection Number Variables (2xs, xs,
+  sm, md, lg, xl, 2xl, 3xl, 4xl). Never hardcode spacing pixel
+  values. Related components must use the same spacing tokens for
+  equivalent padding/gap roles.
+- AFTER combineAsVariants, resize every variant to uniform target
+  dimensions and set primaryAxisSizingMode = 'FIXED'. The API
+  freezes variants at their current size as FIXED.
+- AFTER adding taller content to any variant post-combine, set
+  compSet.clipsContent = false and resize the component set to
+  fully contain all variants.
+- Never give two sibling children FILL sizing on the same axis
+  (e.g. label + field both FILL vertical). The label must be
+  FIXED height; only the field uses FILL.
+- Set explicit padding on header/trigger frames (accordion, dropdown).
+  Never rely on HUG alone for breathing room — always set
+  paddingTop/Bottom/Left/Right explicitly.
+- When applying background fills to a variant, clear white fills
+  on child FRAME nodes first (set fills = [] on any child with
+  r > 0.92, g > 0.92, b > 0.92) so the parent background shows
+  through uniformly.
 
 ## State Output
 Write all created IDs (pages, components, icon components) to:
@@ -876,6 +951,11 @@ Figma file key: {FILE_KEY}
 | Clipped text | Text cut off mid-character at container edge |
 | Squircle distortion | Exaggerated/inconsistent corner radii from auto-layout stretching |
 | Detached state indicator | Icon or dot visually adjacent to but clearly outside the control frame |
+| Chopped-off / clipped variant | Variant content abruptly cut off at bottom or right edge — component set bounding box too small and clipsContent hides overflow |
+| Background fill stripe | Thin band of color where a full background was intended — frame fill only paints its FIXED height while children overflow |
+| Inconsistent spacing | Padding or gaps visibly uneven across variants — one variant cramped while another generous, or label-to-field gap varies |
+| White child frame blocking background | White rectangle covering part of intended background color — child frame retains white fill over parent's background |
+| Unnaturally shrunk variant | Variant significantly smaller than siblings in the grid — tiny/miniature frame with compressed or barely visible content, caused by combineAsVariants freezing HUG-sized variant at small placeholder dimensions |
 
 ## Common Defects by Component
 {PASTE THE RELEVANT ROWS FROM THE "Common Defects by Component"
@@ -910,7 +990,16 @@ Requirements:
   questions MUST verify image content (one for overview, one
   zoomed-in)
 - At least one question tests spacing/padding consistency
-  across variants
+  across variants — verify that declared spacing tokens are
+  used uniformly and no variant has cramped or asymmetric spacing
+- At least one question MUST verify that NO variant appears
+  chopped off, clipped, or partially hidden — every variant's
+  content (text, icons, expanded states, nested elements) must
+  be fully visible within its bounds without truncation
+- At least one question MUST verify that NO variant appears
+  unnaturally shrunk — every variant should render at its
+  intended full dimensions, comparable to its siblings. A
+  variant significantly smaller than others is a defect.
 - Phrase each to make the FAILURE case concrete
 
 ### Step 3 — Answer Each Question (Evidence-Based)
@@ -1025,14 +1114,26 @@ e. Color style adherence:
    from Color Styles, or have some sub-agents used slightly
    different shades or hardcoded colors?"
 
-f. Spacing rhythm:
-   "Is internal padding consistent across similar-sized
-   components (e.g., do Button, Input, Dropdown all have
-   similar horizontal padding)?"
+f. Spacing token adherence:
+   "Do all components use the declared Spacing collection tokens
+   (2xs, xs, sm, md, lg, xl, 2xl, 3xl, 4xl) for their padding
+   and gaps, or have some sub-agents hardcoded pixel values?
+   Compare equivalent spacing roles across sibling components
+   (e.g., Button, Input, and Dropdown should all use the same
+   horizontal padding token for equal visual rhythm)."
 
 g. Typography consistency:
    "Do all components use Text Styles from the foundation, or
    do some have hardcoded font sizes/weights?"
+
+h. Variant completeness (no clipping or shrinkage):
+   "Are ALL variants across ALL components fully visible at their
+   intended dimensions — no content chopped off, clipped, or
+   hidden at any edge, and no variant unnaturally shrunk to a
+   tiny/miniature size compared to its siblings — or do any
+   components have variants where content is truncated, or where
+   a variant is significantly smaller than the others in its
+   component set grid?"
 
 ### Step 3 — Answer Each Question (Evidence-Based)
 For EVERY question, use this MANDATORY format:
