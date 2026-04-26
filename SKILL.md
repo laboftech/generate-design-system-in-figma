@@ -21,7 +21,7 @@ disable-model-invocation: false
 
 # Figma Design System Builder
 
-This skill orchestrates building a complete design system in Figma using the **remote Figma MCP server** (`https://mcp.figma.com/mcp`). It defines WHAT to build and in what order. The `figma-use` and `figma-generate-library` skills (from the Figma plugin) govern HOW to call the Plugin API.
+This skill orchestrates building a complete design system in Figma. It defines WHAT to build and in what order. The `figma-use` and `figma-generate-library` skills (from the Figma plugin) govern HOW to call the Plugin API.
 
 ## Prerequisites — Load These First
 
