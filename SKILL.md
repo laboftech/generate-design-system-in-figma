@@ -88,6 +88,8 @@ If not connected, direct the user to: https://developers.figma.com/docs/figma-mc
 
 This process is not time-sensitive. Each verification step is the most valuable part of the work. Take your time. Thoroughness is more important than speed. There is no progress bar — only quality.
 
+A component without a verification report is not done — it is invisible to the user. The verification report is the deliverable. The build is just the setup. When presenting a tier to the user, they see verification reports and screenshots — not the build steps. If you skip verification, you have produced nothing the user can evaluate.
+
 ---
 
 ## Build Order (Critical — Never Deviate)
@@ -360,7 +362,7 @@ These rules address common Figma Plugin API layout failures that produce visual 
 - **Evidence-based assertions required** — every verification claim must follow the Question / Evidence / Counter-factual / Verdict format. Unsupported claims like "everything looks correct" are not acceptable.
 - **Counter-factual checks required** — for every PASS verdict, describe what the failure would look like and confirm the screenshot does not match.
 - **Coordinator MUST NEVER analyze screenshots directly** — all image analysis (per-component re-verification AND cross-batch consistency) is performed by dedicated Image Analysis Sub-Agents spawned via the Task tool. The coordinator reads their written verification reports and acts on PASS/FAIL verdicts, but never examines screenshots itself. This prevents the coordinator from rushing through visual checks to keep progress moving.
-- **Image Analysis Sub-Agents are mandatory after every tier** — after each tier's builder sub-agents complete, the coordinator MUST spawn per-component re-verification sub-agents (one per batch) AND one cross-batch consistency sub-agent. These run in parallel. Skipping verification sub-agents to save time is treated as a critical process violation.
+- **Image Analysis Sub-Agents are mandatory after every tier** — after each tier's builder sub-agents complete, the coordinator MUST spawn per-component re-verification sub-agents (one per batch) AND one cross-batch consistency sub-agent. These run in parallel. Skipping verification sub-agents does not save time — it produces a tier with no presentable output. The user checkpoint requires verification reports. Without them, there is nothing to show.
 - **Double verification by design** — builder sub-agents perform their own CoVE (Steps 3-5) during the build. Then Image Analysis Sub-Agents re-verify each component with fresh eyes after the tier completes. This two-layer verification catches defects that the builder's confirmation bias missed.
 
 ### Parallel execution rules
@@ -412,7 +414,9 @@ const checkComp = createHeroiconComponent(checkSvg, 'check', 24);
 
 ---
 
-## CoVE-Based Component Verification (Mandatory)
+## CoVE-Based Component Verification (The Primary Deliverable)
+
+Verification is not a gate you pass through after the real work. Verification IS the real work. A built component without a verification report is like code without tests — it may exist, but it cannot be trusted or shipped. The verification report is what the user evaluates at each checkpoint. It is the visible output of each tier.
 
 After each component is built (after Step 2 in the per-component flow), verification follows the Chain-of-Verification (CoVE) pattern. This replaces the old generic-checklist approach with structured, independent, evidence-based verification that resists confirmation bias.
 
